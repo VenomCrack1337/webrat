@@ -4,5 +4,5 @@ eventlet
 Pillow
 python-socketio
 psutil
-gunicorn
 pyautogui
+pyaudio
