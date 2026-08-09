@@ -4,3 +4,4 @@ eventlet
 Pillow
 python-socketio
 psutil
+gunicorn
