@@ -10,7 +10,7 @@ import psutil
 
 # ⚠️ ЗАМЕНИТЕ ЭТУ СТРОКУ НА ВАШ ДОМЕН RENDER ПОСЛЕ ДЕПЛОЯ (например: https://ваш-проект.onrender.com)
 # Если тестируете локально, оставьте как есть: http://127.0.0.1:5000
-SERVER_URL = 'http://127.0.0.1:5000' 
+SERVER_URL = 'https://webrat-eagn.onrender.com' 
 
 sio = socketio.Client()
 
